@@ -1,2 +1,93 @@
 <!doctype html>
-<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Espace admin — LINA TRANS</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#F5F0E6;font:16px Arial;color:#142B49;padding:20px}.panel{max-width:430px;background:white;padding:32px;border-top:4px solid #C6A15B}h1{font:32px Georgia,serif}label{display:block;margin-top:16px;font-weight:bold}input{width:100%;padding:12px;margin-top:6px;box-sizing:border-box}button{margin-top:20px;width:100%;padding:13px;background:#142B49;color:white;border:0}.note{background:#fff6e5;padding:12px;font-size:13px;line-height:1.5}</style></head><body><main class="panel"><h1>LT · LINA TRANS</h1><h2>Espace administrateur</h2><p>Accès réservé aux administrateurs.</p><form id="login"><label>Identifiant</label><input autocomplete="username" required><label>Mot de passe</label><input type="password" autocomplete="current-password" required><button>Se connecter</button></form><p class="note">Cette page est une maquette visuelle. La connexion sécurisée des deux comptes administrateurs nécessite un service d'authentification côté serveur. N'entrez pas vos vrais mots de passe ici pour le moment.</p><a href="index.html">Retour au site</a></main><script>document.getElementById('login').addEventListener('submit',e=>{e.preventDefault();alert("La connexion sécurisée n'est pas encore configurée.");});</script></body></html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Espace admin — LINA TRANS</title>
+<style>
+:root{--ivory:#F5F0E6;--gold:#C6A15B;--navy:#142B49}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--ivory);font:16px Arial,sans-serif;color:var(--navy);padding:24px}.panel{max-width:1050px;margin:30px auto;background:white;padding:28px;border-top:4px solid var(--gold)}h1{font:32px Georgia,serif}label{display:block;margin-top:16px;font-weight:bold}input{width:100%;max-width:440px;padding:12px;margin-top:6px;box-sizing:border-box;border:1px solid #cfc8bc}button{margin-top:20px;padding:13px 20px;background:var(--navy);color:white;border:0;cursor:pointer}button:disabled{opacity:.6}.note{background:#fff6e5;padding:12px;font-size:13px;line-height:1.5}#dashboard{display:none}.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{text-align:left;padding:12px;border-bottom:1px solid #ddd;vertical-align:top}th{background:var(--ivory)}#status{font-weight:bold;white-space:pre-wrap}.top{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap}
+</style></head><body><main class="panel"><div class="top"><h1>LT · LINA TRANS</h1><a href="index.html">Retour au site</a></div>
+<section id="login-panel"><h2>Espace administrateur</h2><p>Connectez-vous avec le compte administrateur créé dans Supabase.</p><form id="login-form"><label>Identifiant (WTLINA) ou adresse e-mail</label><input id="identity" autocomplete="username" required><label>Mot de passe Supabase</label><input id="password" type="password" autocomplete="current-password" required><button id="login-button" type="submit">Se connecter</button></form></section>
+<section id="dashboard"><div class="top"><h2>Demandes de devis reçues</h2><button id="logout-button" type="button">Se déconnecter</button></div><p>Les demandes sont chargées depuis la base sécurisée LINA TRANS.</p><div class="table-wrap"><table><thead><tr><th>Date</th><th>Nom</th><th>Téléphone</th><th>E-mail</th><th>Prestation</th><th>Détails</th></tr></thead><tbody id="requests-body"></tbody></table></div></section>
+<p id="status" class="note" role="status" aria-live="polite">Connexion sécurisée par Supabase. Pour l’instant, seul le compte WTLINA est autorisé à consulter les demandes.</p>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script>
+const SUPABASE_URL = 'https://ypbvctrtakxyfpcvpotb.supabase.co';
+const SUPABASE_PUBLIC_KEY = 'sb_publishable_x0IdpYwH7jQIc_j1Ra0idA_QFEvY3x2';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
+const allowedEmail = 'contact.linatrans1@gmail.com';
+const loginPanel = document.getElementById('login-panel');
+const dashboard = document.getElementById('dashboard');
+const statusBox = document.getElementById('status');
+const requestsBody = document.getElementById('requests-body');
+function showStatus(message) { statusBox.textContent = message; }
+async function loadRequests() {
+  const { data, error } = await supabaseClient.from('demandes_devis').select('id,created_at,nom,telephone,email,prestation,details').order('created_at', { ascending: false });
+  if (error) throw error;
+  requestsBody.replaceChildren();
+  if (!data || data.length === 0) {
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 6;
+    cell.textContent = 'Aucune demande reçue pour le moment.';
+    row.appendChild(cell);
+    requestsBody.appendChild(row);
+    return;
+  }
+  for (const item of data) {
+    const row = document.createElement('tr');
+    const values = [
+      item.created_at ? new Date(item.created_at).toLocaleString('fr-FR') : '',
+      item.nom, item.telephone, item.email, item.prestation, item.details || ''
+    ];
+    for (const value of values) {
+      const cell = document.createElement('td');
+      cell.textContent = value == null ? '' : String(value);
+      row.appendChild(cell);
+    }
+    requestsBody.appendChild(row);
+  }
+}
+async function enterDashboard(user) {
+  if (!user || user.email !== allowedEmail) {
+    await supabaseClient.auth.signOut();
+    throw new Error('Ce compte n’est pas autorisé à accéder à l’espace administrateur.');
+  }
+  loginPanel.style.display = 'none';
+  dashboard.style.display = 'block';
+  showStatus('Connexion réussie.');
+  await loadRequests();
+}
+document.getElementById('login-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const button = document.getElementById('login-button');
+  button.disabled = true;
+  showStatus('Connexion en cours…');
+  const identity = document.getElementById('identity').value.trim();
+  const email = identity.toUpperCase() === 'WTLINA' ? allowedEmail : identity.toLowerCase();
+  const password = document.getElementById('password').value;
+  try {
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    await enterDashboard(data.user);
+  } catch (error) {
+    console.error(error);
+    showStatus(error.message || 'Connexion impossible. Vérifiez votre identifiant et votre mot de passe.');
+    await supabaseClient.auth.signOut();
+    loginPanel.style.display = 'block';
+    dashboard.style.display = 'none';
+  } finally {
+    button.disabled = false;
+  }
+});
+document.getElementById('logout-button').addEventListener('click', async () => {
+  await supabaseClient.auth.signOut();
+  dashboard.style.display = 'none';
+  loginPanel.style.display = 'block';
+  document.getElementById('password').value = '';
+  showStatus('Vous êtes déconnecté.');
+});
+(async () => {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session) {
+    try { await enterDashboard(session.user); }
+    catch (error) { showStatus(error.message); }
+  }
+})();
+</script></body></html>
